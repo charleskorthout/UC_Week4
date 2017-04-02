@@ -247,18 +247,291 @@ In de vorige stap is bepaald hoe vaak welke karakters voorkomen, of anders gezeg
 #### Vraag 2a. 
 
 Kies een datastructuur om je karakters op frequentie te kunnen sorteren. Beargumenteer je keuze.
+Erg belangrijk in de keuze van de datastructuur is of we een in-place sortering moeten doen of dat we kunnen invoegen in een externe lijst.
+Omdat het hier gaat over relatief kleine lijsten is een mogelijke structuur is een gesorteerde lijst, omdat het aantal verschillend karakters klein is, bjvoorbeeld 255 bij een single byte karakter of 64k bij een twee byte karakter is het eenvoudig om de ene lijst een-voor-een te lezen in in tre voegen in de gesorteerde lijst.
+<br>
+Op kleine collecties is het meestal sneller om de lijst opnieuw op te bouwen, in de lijst kunnen dubbelen voorkomen, een gesorteerde lijst, hashMap of een Bag is waarschijnlijk de beste oplossing. Een voorbeeld van een implementatie kan dan zijn met een balanced tree (n log(n)) voor  
+In het antwoord voor de vorige vraag hadden we een array gebruikt om de frequenties te tellen, waarbij we de byte waarde gebruikte als array index.
 
-Een mogelijke structuur is een 
-#### Vraag 2b. 
+Laten we hiervoor nu een nieuwe (generieke) klasse introduceren, gebaseerd op wat we hierboven al met de HashMap hadden gemaakt en wat we nu FrequencyCounter noemen
 
-Van welke orde is het sorteer algoritme? 
-- ..
+``` java
+package Huffman;
 
-Vraag 2c. 
-Hoe geef je aan waarop er gesorteerd moet worden?
-- ..
-- ..
-- ..
+import java.util.HashMap;
+import java.util.Set;
+import java.util.Map;
+
+/**
+ * Created by charles korthout on 4/2/2017.
+ */
+public class FrequencyCounter<T extends Comparable<T>> {
+
+    private final HashMap<T, Integer> frequencies = new HashMap<>();
+
+    /**
+    * Increments the count of the given type,
+    * setting it to one on first appearance.
+    * @param t the type to count
+    */
+    public void increment(T t) {
+        Integer freq = frequencies.get(t);
+        if (freq == null) {
+            frequencies.put(t, 1);
+        } else {
+            frequencies.put(t, freq + 1);
+        }
+    }
+
+    
+    /**
+     * Returns the set of types seen along with their frequencies.
+     * @return set containing each type seen while counting frequencies
+     */
+    public Set<Map.Entry<T, Integer>> getCharacterCounts() {
+        return frequencies.entrySet();
+    }
+
+}
+
+```
+
+We kunnen nu eenvoudig de frequency counter for een stuk tekst maken, met de volgende test stubs.
+
+``` java 
+package HuffmanTests;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
+import static Huffman.CharacterCounter.getCharacterCounts;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Created by charl on 4/2/2017.
+ */
+class CharacterCounterTest {
+
+    @org.junit.jupiter.api.Test
+    void getCharacterCountsWhenAllCharactersAreSame() {
+        String test = "aaaaaa";
+        Set<Map.Entry<Character, Integer>> counts = getCharacterCounts(test);
+        Iterator iterator = counts.iterator();
+        int expected = 6;
+        int actual = ((Entry<Character,Integer>) iterator.next()).getValue();
+        assertEquals(expected,actual);
+    }
+
+    @org.junit.jupiter.api.Test
+    void getCharacterCountsWhenAllCharactersAreDifferent() {
+        String test = "abcdef";
+        Set<Map.Entry<Character, Integer>> counts = getCharacterCounts(test);
+        int expected = 6;
+        int actual = counts.size();
+        assertEquals(expected,actual);
+    }
+}
+
+```
+
+``` java
+package Huffman;
+
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Created by charles korthout on 4/2/2017.
+ */
+public class CharacterCounter {
+
+     /**
+     * Returns the set of characters seen along with their frequencies in a specific text.
+     * @return set containing each character seen while counting frequencies
+     */
+    public static Set<Map.Entry<Character, Integer>> getCharacterCounts(String text) {
+        FrequencyCounter<Character> counts = new FrequencyCounter<>();
+        text.chars().forEach( (c) -> counts.increment((char)c));
+        return counts.getCounts();
+    }
+}
+
+```
+
+![ ](./img/2017-04-02_18-37-38.jpg)
+
+We hebben nu een structuur die een type en een integer bevat. Een snelle data structuur om de waardes gesorteerd op te slaan is een Binary Search Tree (BST). Hier worden waardes die kleiner zijn in de linker brach opgeslagen en waardes die groter in de rechter branch. In ons voorbeeld is het echter mogelijk dat er dubbelen zijn. We kunnen daarom kiezen om de waardes kleiner <b>of gelijk aan </b> in de linker brach op te nemen en waardes groter in de rechter branch. een tweede mogelijkheid is om een lijst van alle waardes die gelijk zijn aan te houden in de parent.
+De laatste zal waarschijnlijk sneller zijn als er veel identieke waardes zijn. Laten we voor de laatste implementatie kiezen.
+
+``` java 
+package Huffman;
+
+import java.util.*;
+import java.util.Map.Entry;
+
+/**
+ * Created by charles korthout on 4/2/2017.
+ */
+public class HuffmanNode {
+    List<Character> chars; // hold the list of all different characters that have the same frequency count
+    Integer frequency; // the frequency count
+    HuffmanNode leftbranch; // the nodes with frequency counts that are smaller than value
+    HuffmanNode rightbranch; // the nodes with frequency counts that are larger than value.
+
+    /**
+     * De default constructor.
+     * @param character The character to add
+     * @param frequency The frequency count
+     * @param left the bracnh with values that are smaller than the current frequency count
+     * @param right The branch with values that are larger than the current frequency count.
+     */
+    HuffmanNode(char character, int frequency,  HuffmanNode left,  HuffmanNode right) {
+        this.chars = new ArrayList<>();
+        chars.add(character);
+        this.frequency = frequency;
+        this.leftbranch = left;
+        this.rightbranch = right;
+    }
+
+    List<Character> getCharacters() {
+        return chars;
+    }
+
+    int getFrequency() {
+        return frequency;
+    }
+```
+
+We moeten er nu ook voor zorgen dat we de HuffmanNode met elkaar kunnen vergelijken, dus we zorgen dat we ook de klass Comparable implementeren
+
+``` java 
+
+public class HuffmanNode implements Comparable<HuffmanNode>{
+
+...
+
+     @Override
+     public int compareTo(HuffmanNode node) {
+             return frequency - node.frequency; // The old integer compare trick...
+     }
+     
+     @Override
+     public boolean equals(Object o) {
+         if (null==o) return false;
+         if (!(o instanceof HuffmanNode)) return false;
+         HuffmanNode node = (HuffmanNode) o;
+         return frequency == node.frequency;
+     }
+     
+     @Override
+     public int hashCode(){
+         return frequency.hashCode();
+     }
+
+```
+
+### Huffman testen
+Voordat we de daadwerkelijke implementatie van Huffman beginnen is het belangrijk om eerst wat testen te maken van het gedrag dat we verwachten van de Huffman node.
+<br>
+Uiteindelijk doel is om text te comprimeren (encrypt) en te decomprimeren met decrypt. De decrypt van de encrypt moet het originele bericht opleveren.
+Het test bestand kan er dan als volgt uitzien.
+
+``` java
+package HuffmanTests;
+
+import Huffman.HuffmanNode;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Created by charles korthout on 4/2/2017.
+ */
+class HuffmanNodeTest {
+    HuffmanNode huffman = null;
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+    }
+
+    /**
+     * The decrypt from the encrypted message must provide the original message
+     */
+    @org.junit.jupiter.api.Test
+    void testEncryptAndDecrypt() {
+        String test = "test";
+        assertEquals(test, HuffmanNode.decrypt(HuffmanNode.encrypt(test)));
+    }
+}
+```
+
+We voegen de beide methodes toe aan de HuffmanNode
+
+``` java
+     /**
+     * encrypt a text to a compressed form, using the Huffman coding
+     * @param text The Text to compress
+     * @return The encrypted string compressed by the Huffman compression algorithm
+     */
+    public static String encrypt(String text) {
+        // TODO
+        throw new NotImplementedException();
+    }
+
+    /**
+     * Decrypts a Huffman encoded text message into the original text
+     * @param codedText The message to decompress
+     * @return The uncompressed text
+     */
+    public static String decrypt(String codedText) {
+        // TODO
+        throw new NotImplementedException();
+    }
+
+```
+Dit geeft het volgende (verwachte) testresultaat
+
+![ ](./img/2017-04-02_19-06-33.jpg) 
+
+We moeten nu de Huffman boom maken op basis van de tekst die we aangeleverd krijgen.
+
+``` java
+
+/**
+     * Build a Huffman tree from a text
+     * @param text The text to code
+     * @return an ordered Huffman tree for the text
+     */
+    public HuffmanNode buildTree(String text){
+        // TODO check if text is not empty...
+        Set<Map.Entry<Character, Integer>> counts = CharacterCounter.getCharacterCounts(text);
+        HuffmanNode tree = null;
+        Iterator iterator = counts.iterator();
+        if (iterator.hasNext()) {
+            Entry<Character,Integer> entry = (Entry) iterator.next();
+            tree = new HuffmanNode(entry.getKey(),entry.getValue(), null,null);
+        }
+        while (iterator.hasNext()) {
+            Entry<Character,Integer> entry = (Entry) iterator.next();
+            HuffmanNode node = new HuffmanNode(entry.getKey(),entry.getValue(), null,null);
+            tree.add(node);
+        }
+        return tree;
+    }
+
+```
+
+
+#### Vraag 2b. Van welke orde is het sorteer algoritme? 
+We hebben nu een sorteer algoritme gemaakt. Het eerste gedeelte het lezen van de text is O(1). Het invoegen van in de boom is order log(n). (We beschouwen het toevoegen aan de lijst bij gelijkheid ook O(1)).Het opzetten is dus O(log(n))
+
+
+#### Vraag 2c. Hoe geef je aan waarop er gesorteerd moet worden?
+Er word gesorteerd op basis van het aantal maal dat een karakter voor komt in de tekst. Dit wordt eerst opgeslagen in een HashMap en daarna worden de elementen toegevoegd aan een BST met een lijst implementatie voor gelijkheid.
 
 Een ander mogelijkheid is om gebruik te maken van een gesorteerde collection, bijvoorbeeld een PriorityQueue van het Java Collection Framework om de elementen gesorteerd op te vragen. Bestudeer de mogelijkheden van de PriorityQueue om een goede keuze kunnen maken.
 
