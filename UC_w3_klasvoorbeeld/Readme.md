@@ -255,15 +255,57 @@ In het antwoord voor de vorige vraag hadden we een array gebruikt om de frequent
 
 Laten we hiervoor nu een nieuwe (generieke) klasse introduceren, gebaseerd op wat we hierboven al met de HashMap hadden gemaakt en wat we nu FrequencyCounter noemen
 
+Om een meer generieke oplossing te maken heb ik in Maart 2018 de structuur gewijzigd. Ik heb een nieuw package gemaakt; Compression met 2 nieuwe interfaces:
+- Decoder 
+- Encoder.
+
+De structuuur ziet er als volgt uit:
+
+```java
+
+package Compression;
+
+public interface Encoder<S,T> {
+    /**
+     * Encode from the source format into the target format
+     * @param s The source format for example String
+     * @return the encoded data in the target format
+     */
+    T encode(S s);
+}
+```
+De bijbehoordende decoder ziet er als volgt uit
+
+```java
+
+package Compression;
+
+public interface Decoder<T, S> {
+    /**
+     * Decodes encoded data to the source format 
+     * @param t the encoded data 
+     * @return the decoded data
+     */
+    S decode(T t);
+}
+
+```
+
+Een veelvoorkomde oplossing in compressiealgoritme is het tellen van hoevaak een charater of structuur voorkomt.
+Hiervoor maken we een structuur aan die we onderbrengen in een hulpmiddelen package.
+
+
 ``` java
-package Huffman;
+package Compression.Utils;
 
 import java.util.HashMap;
-import java.util.Set;
 import java.util.Map;
+import java.util.stream.Stream;
+
 
 /**
  * Created by charles korthout on 4/2/2017.
+ * March 11 2018 Changed the frequency counter to return sorted stream and moved to utils package
  */
 public class FrequencyCounter<T extends Comparable<T>> {
 
@@ -283,86 +325,271 @@ public class FrequencyCounter<T extends Comparable<T>> {
         }
     }
 
-    
     /**
-     * Returns the set of types seen along with their frequencies.
-     * @return set containing each type seen while counting frequencies
+     * Returns the sorted stream of characters and their (descending) frequencies
+     * https://stackoverflow.com/questions/109383/sort-a-mapkey-value-by-values
      */
-    public Set<Map.Entry<T, Integer>> getCharacterCounts() {
-        return frequencies.entrySet();
-    }
-
+    Stream<Map.Entry<T,Integer>> getCounts =
+            frequencies.entrySet()
+                    .stream()
+                    .sorted(Map.Entry.comparingByValue());
 }
 
 ```
 
-We kunnen nu eenvoudig de frequency counter for een stuk tekst maken, met de volgende test stubs.
+Ik ben nog steeds niet overtuigd over dit fragment. Algemeen wordt aangegeven dat Hashmap met de invoering van streams 'legacy' code is en dat het beter is om <code>Map</code> te gebruiken.
+Op basis hiervan de volgende refactoring gedaan:
 
 ``` java 
-package HuffmanTests;
 
+package Compression.Utils;
+
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static Huffman.CharacterCounter.getCharacterCounts;
-import static org.junit.jupiter.api.Assertions.*;
-
-/**
- * Created by charl on 4/2/2017.
- */
-class CharacterCounterTest {
-
-    @org.junit.jupiter.api.Test
-    void getCharacterCountsWhenAllCharactersAreSame() {
-        String test = "aaaaaa";
-        Set<Map.Entry<Character, Integer>> counts = getCharacterCounts(test);
-        Iterator iterator = counts.iterator();
-        int expected = 6;
-        int actual = ((Entry<Character,Integer>) iterator.next()).getValue();
-        assertEquals(expected,actual);
-    }
-
-    @org.junit.jupiter.api.Test
-    void getCharacterCountsWhenAllCharactersAreDifferent() {
-        String test = "abcdef";
-        Set<Map.Entry<Character, Integer>> counts = getCharacterCounts(test);
-        int expected = 6;
-        int actual = counts.size();
-        assertEquals(expected,actual);
-    }
-}
-
-```
-
-``` java
-package Huffman;
-
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Created by charles korthout on 4/2/2017.
+ * March 12 2018 Refactored the Hashmap to streams
+ */
+public class FrequencyCounter<T extends Comparable<T>> {
+
+    /**
+     * Calcualte the frequencies of elements in a stream
+     * @param stream The stream of elements
+     * @return A map with elements and their frequencies
+     */
+    public final Map<T,Long> getFrequencies(Stream<T> stream) {
+        // Group the elements in a stream based on there identity and count the occurences
+        Map<T, Long> result = stream.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        Map<T, Long> frequencies = new LinkedHashMap<>();
+        //Sort the map based on frequencies in asscending order (lowest values first)
+        result.entrySet().stream()
+                .sorted(Map.Entry.<T, Long>comparingByValue())
+                .forEachOrdered(e -> frequencies.put(e.getKey(), e.getValue()));
+        return frequencies;
+    }
+}
+
+```
+De telling gebeurd nu door de groupBy collector in de stream.  Een tweede stap is om hierna de sortering te doen zodat de kleinste waardes vooraan staan.
+Nu gebeurd dit nog door een extra stap uit te voeren. Een verbetering kan zijn door dit in een stap te zetten.
+
+```java
+    public final Map<T,Long> getFrequencies(Stream<T> stream) {
+        Map<T, Long> frequencies = new LinkedHashMap<>();
+        // Group the elements in a stream based on there identity and count the occurences
+        stream.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                                 .entrySet()
+                                 .stream()
+                                 .sorted(Map.Entry.<T, Long>comparingByValue())
+                                 .forEachOrdered(e -> frequencies.put(e.getKey(), e.getValue()));;
+        return frequencies;
+    }
+```
+
+
+We kunnen nu eenvoudig de frequency counter for een stuk tekst maken, met de volgende test stubs.
+De testen worden ondergebracht in een separaat package; CompressionTests
+
+We hebben de volgende tests:
+- bij gelijke karakters
+- bij dezelfde karakters
+- bij zowel gelijke als verschillende karakters
+- check op gesorteerdheid.
+
+De check op gesorteerdheid voor streams is een complexe. Die wordt hier uitgevoerd in twee fases; op basis van een iterator
+ wordt de gesorteerdheid gecontroleerd. Deze routine wordt dan aangeroepen met de iterator van de stream.
+ 
+```java
+/**
+     * Check if an collection is sorted in descending order
+     * @param iterator the collection that can be iterated
+     * @param <T> The element
+     * @return true if sorted, false otherwise
+     */
+    private static <T extends Comparable<? super T>> boolean isSorted(Iterator<T> iterator) {
+        if (!iterator.hasNext()) {
+            return true;
+        }
+        T t = iterator.next();
+        while (iterator.hasNext()) {
+            T t2 = iterator.next();
+            if (t.compareTo(t2) > 0) {
+                return false;
+            }
+            t = t2;
+        }
+        return true;
+    }
+
+    /**
+     * Check if a stream is sorted
+     * @param stream the stream of elements
+     * @param <T> The type of elements
+     * @return true if the stream is sorted, false otherwise
+     */
+    private static <T extends Comparable<? super T>> boolean isSorted(Stream<T> stream) {
+        return CharacterCounterTest.isSorted(stream.iterator());
+    }
+
+```
+Dit is dan te gebruiken in de testen
+
+``` java 
+package CompressionTests;
+
+import Compression.Utils.CharacterCounter;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.stream.Stream;
+
+class CharacterCounterTest {
+
+    
+    /**
+     * Test that identical characters give the appropriate count
+     */
+    @Test
+    void getCharacterCountsWhenAllCharactersAreSame() {
+        String test = "aaaaaa";
+        Map<Character, Long> counts = CharacterCounter.getFrequencies(test);
+        System.out.println(counts);
+        int expected = 1;
+        int actual = counts.size();
+        assertEquals(expected,actual, "Expexting a frequency of 6");
+    }
+
+    /**
+     * Test that different characters give the appropriate count
+     */
+    @Test
+    void getCharacterCountsWhenAllCharactersAreDifferent() {
+        String test = "abcdef";
+        Map<Character, Long> counts = CharacterCounter.getFrequencies(test);
+        System.out.println(counts);
+        long expected = 6;
+        long actual = counts.size();
+        assertEquals(expected,actual, "Expexting a frequency of 6");
+    }
+
+    /**
+     * Test that different characters give the appropriate count
+     */
+    @Test
+    void getCharacterCountsWhenBothEqualAndDifferentCharacters() {
+        String test = "aaabbc";
+        Map<Character, Long> counts = CharacterCounter.getFrequencies(test);
+        System.out.println(counts);
+        long expected = 3;
+        long actual = counts.size();
+        assertEquals(expected,actual, "Expexting a frequency of 3");
+    }
+
+    /**
+     * Test that different characters give the appropriate count
+     */
+    @Test
+    void checkIfStreamIsSorted() {
+        String test = "aaabbc";
+        Map<Character, Long> counts = CharacterCounter.getFrequencies(test);
+        System.out.println(counts);
+        boolean expected = true;
+        boolean actual = CharacterCounterTest.isSorted(counts.values().stream());
+        assertEquals(expected,actual, "Expecting a sorted stream");
+    }
+}
+
+```
+De body van de CharacterCounter is nu eenvoudig in te vullen met de FrequencyCounter klasse.
+
+``` java
+package Compression.Utils;
+
+import java.util.Map;
+
+/**
+ * Created by charles korthout on 4/2/2017.
+ * March 2018, Refactored to use the FrequencyCounter refactored getFrequencies
  */
 public class CharacterCounter {
 
-     /**
-     * Returns the set of characters seen along with their frequencies in a specific text.
-     * @return set containing each character seen while counting frequencies
+    /**
+     * Gets the characters and the frequency from a text
+     * @param text The text with characters
+     * @return A map of characters and their frequencies in descending sorted order
      */
-    public static Set<Map.Entry<Character, Integer>> getCharacterCounts(String text) {
-        FrequencyCounter<Character> counts = new FrequencyCounter<>();
-        text.chars().forEach( (c) -> counts.increment((char)c));
-        return counts.getCounts();
+    public final static Map<Character,Long> getFrequencies(String text) {
+         FrequencyCounter counter = new FrequencyCounter();
+         return counter.getFrequencies(text.chars().mapToObj(i-> (char)(i)));
+    }
+}
+
+
+```
+
+![ ](./img/2018-03-13_9-50-01.jpg)
+
+We hebben nu een contract voor het coderen en decoderen en een hlpmiddel om karakters in een tekst te tellen.
+
+De volgende stap is dat we een Huffman compressie voor een tekst te maken.
+
+```java
+
+package Compression;
+
+/**
+ * The Huffman text compressor compresses and decompresses a text to/from a string of zeroes and ones
+ */
+public class HuffmanTextCompressor implements Encoder<String, String>, Decoder<String,String> {
+
+    @Override
+    public String decode(String s) {
+        return null;
+    }
+
+    @Override
+    public String encode(String s) {
+        return null;
     }
 }
 
 ```
 
-![ ](./img/2017-04-02_18-37-38.jpg)
+Een bijbehorende test is dat de gedecodeerde code gelijk moet zijn aan de ongecodeerde code.
 
-We hebben nu een structuur die een type en een integer bevat. Een snelle data structuur om de waardes gesorteerd op te slaan is een Binary Search Tree (BST). Hier worden waardes die kleiner zijn in de linker brach opgeslagen en waardes die groter in de rechter branch. In ons voorbeeld is het echter mogelijk dat er dubbelen zijn. We kunnen daarom kiezen om de waardes kleiner <b>of gelijk aan </b> in de linker brach op te nemen en waardes groter in de rechter branch. een tweede mogelijkheid is om een lijst van alle waardes die gelijk zijn aan te houden in de parent.
+```java
+
+package CompressionTests;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import Compression.HuffmanTextCompressor;
+
+class HuffmanTextCompressorTest {
+
+    /**
+     * The decoded, code message must match the inital text
+     */
+    @Test
+    public void CodeTextDecodedMustMatchUncodeMessage(){
+        HuffmanTextCompressor compressor = new HuffmanTextCompressor();
+        String actual = "This is text";
+        String expected = compressor.decode(compressor.encode(actual));
+        assertEquals(expected, actual);
+    }
+}
+```
+
+We hebben nu een structuur nodig om waardes op te slaan. Een snelle data structuur om de waardes gesorteerd op te slaan is een Binary Search Tree (BST). Hier worden waardes die kleiner zijn in de linker brach opgeslagen en waardes die groter in de rechter branch. In ons voorbeeld is het echter mogelijk dat er dubbelen zijn. We kunnen daarom kiezen om de waardes kleiner <b>of gelijk aan </b> in de linker brach op te nemen en waardes groter in de rechter branch. een tweede mogelijkheid is om een lijst van alle waardes die gelijk zijn aan te houden in de parent.
 De laatste zal waarschijnlijk sneller zijn als er veel identieke waardes zijn. Laten we voor de laatste implementatie kiezen.
 
 ``` java 
