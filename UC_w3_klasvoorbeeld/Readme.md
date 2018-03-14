@@ -631,7 +631,7 @@ public class HuffmanNode {
     }
 ```
 
-We moeten er nu ook voor zorgen dat we de HuffmanNode met elkaar kunnen vergelijken, dus we zorgen dat we ook de klass Comparable implementeren
+We moeten er nu ook voor zorgen dat we de HuffmanNode met elkaar kunnen vergelijken, dus we zorgen dat we ook de class Comparable implementeren
 
 ``` java 
 
@@ -658,6 +658,22 @@ public class HuffmanNode implements Comparable<HuffmanNode>{
      }
 
 ```
+#### Refactoring maart 2018
+Omdat de nieuwe tel routine het type <code>Long</code> gebruikt moeten we de compare ook aanpassen. De nieuwe <code>compareTo</code> methode wordt nu:
+
+```java
+
+/**
+         * The compare of the nodes is based on the frequencies
+         * @param that The node to compare with
+         * @return the comapre result
+         */
+        public int compareTo(HuffmanNode that) {
+            return Long.compare(this.freq , that.freq);
+        }
+
+``` 
+#### Einde refactoring maart 2018
 
 ### Huffman testen
 Voordat we de daadwerkelijke implementatie van Huffman beginnen is het belangrijk om eerst wat testen te maken van het gedrag dat we verwachten van de Huffman node.
@@ -695,6 +711,26 @@ class HuffmanNodeTest {
     }
 }
 ```
+
+#### Refactoring Maart 2018
+Voor de nieuwe uitwerking van de Huffman codering hebben we nu slechts 2 publieke methodes; 
+- <code>encode</code> Om een type te comprimeren
+- <code>decode</code> Om een gecodeerd bericht te decoderen
+
+De laatste test wordt nu:
+```java
+/**
+     * The decoded, code message must match the inital text
+     */
+    @Test
+    public void CodeTextDecodedMustMatchUncodeMessage(){
+        HuffmanTextCompressor compressor = new HuffmanTextCompressor();
+        String actual = "This is text";
+        String expected = compressor.decode(compressor.encode(actual));
+        assertEquals(expected, actual);
+    }
+```
+#### Einde refactoring Maart 2018
 
 We voegen de beide methodes toe aan de HuffmanNode
 
@@ -752,9 +788,174 @@ We moeten nu de Huffman boom maken op basis van de tekst die we aangeleverd krij
 
 ```
 
+#### Refactoring Maart 2018
+
+De oplossing van afgelopen jaar was uitgebreider dan het m.i. noodzakelijk was. Er zijn enkele zaken die storend zijn:
+- de twee stappen om de Huffman tree op te bouwen. 
+- het geknutsel met de waarde bij een gecombineerd veld; hier wordt nu het karakter '\0' gebruikt.
+
+Verder kan de Huffman codering generieker gemaakt worden. In de <code>FrequencyCounter</code> maken we gebruik van een generiek type <code>T</code>, die we in de <code>CharacterCounter</code> onmiddelijk casten naar <code>Character</code>. Wat als we die cast nu uitstellen?
+  
+Java versie 8 (en 9) hebben mogelijkheden om e.e.a. te verbeteren. 
+Laten we beginnen met de Huffman tree zelf. Voor deze implementatie gebruiken we nu een <code>PriorityQueue</code>. Een van de kenmerken van deze datastructuur is dat de kleinste waarde vooraan staat.
+
+Verder willen we nogmaals herhalen wat de kern van het Huffman algoritme is:
+- vul de <code>PriorityQueue</code> met alle elementen uit de element tellingen.
+- pak de kleinste elementen, voeg die samen tot een nieuw element, waarbij de frequentie de toetaal waarde krijgt van de frequentie uit de twee nodes.
+- herhaal de procedure totdat er slechts een node in de queue overblijft.
+- loop tot slot door de alle nodes om de codes te bepalen.
+
+De methode <code>buildTree</code> ziet er dan als volgt uit:
+
+```java
+/**
+         * Build a Huffman tree from a text
+         * @param text The text to code
+         * @return an ordered Huffman tree for the text
+         */
+        private static HuffmanNode buildTree(String text) {
+            Queue<HuffmanNode> pq = new PriorityQueue<>();
+            Iterator<Map.Entry<Character,Long>> frequencies = CharacterCounter.getFrequencies(text).entrySet().stream().iterator();
+            while (frequencies.hasNext()){
+                Map.Entry<Character,Long> entry = frequencies.next();
+                pq.add(HuffmanNode.from(entry.getKey(),entry.getValue()));
+            }
+            while (pq.size() > 1) {
+                //Remove two smallest elements.
+                HuffmanNode node1 = pq.poll();
+                HuffmanNode node2 = pq.poll();
+                // Combine into a single node with these two as its children.
+                pq.add(new HuffmanNode('\0', node1.freq+node2.freq, node1,node2));
+            }
+            // pq.size must be 1 so return the node
+            return pq.poll();
+        }
+```
+
+Zoals hierboven aangegeven zie je in de parameters dat we een tekst als parameter meegeven en in de body <code>Character</code> als element meenemmen. 
+
+Verder valt op dat in de <code>add</code> een karakter '\0' als parameter wordt meegegeven. Laten we dat eerst m.b.v. de klasse <code>Optional</code> wat netter proberen op te lossen.
+
+Een eerste stap is om de class <code>HuffmanNode</code> in een apart bestand op te nemen en meer generiek te maken en de class <code>Optional</code> te gebruiken voor het element.
+
+```java
+package Compression;
+
+import java.util.Optional;
+
+/**
+ * A tree structure to hold the huffman elements and frequencies
+ */
+public class HuffmanNode<T> implements Comparable<HuffmanNode<T>> {
+    private final Optional<T> element;
+    private final Long freq;
+    private HuffmanNode left, right;
+
+    private HuffmanNode(Optional<T> element, Long freq, HuffmanNode<T> left, HuffmanNode<T> right) {
+        this.element = element;
+        this.freq = freq;
+        this.left = left;
+        this.right = right;
+    }
+
+    public HuffmanNode left() { return left; } 
+    public HuffmanNode right() { return right; }
+    public Long frequency() { return freq;}
+    public Optional<T> element() { return element;}
+
+    /**
+     * Create a Huffman node from the element and the frequency
+     * @param element The element
+     * @param freq The total occurences of this element
+     * @param <T> The type of the element
+     * @return A Huffman node with the element and frequencies and empty subtrees
+     */
+    public static <T> HuffmanNode<T> from(T element, Long freq) {
+        return new HuffmanNode(Optional.of(element), freq, null, null);
+    }
+
+    /**
+     * Combines two Huffman nodes into a single node, and adds the frequencies of the subnodes
+     * @param left The left node
+     * @param right The right node
+     * @param <T> The type of the element
+     * @return A Huffman Node that is build from the two subnodes
+     */
+    public static <T> HuffmanNode<T> combine(HuffmanNode<T> left, HuffmanNode<T> right) {
+        return new HuffmanNode(Optional.empty(), left.frequency() + right.frequency(), left, right);
+    }
+    /**
+     * The Huffman node is a leaf node if both substrees are null
+     *
+     * @return the logical result of both subtrees being null
+     */
+    private boolean isLeaf() {
+        return (left == null) && (right == null);
+    }
+
+    /**
+     * The compare of the nodes is based on the frequencies
+     *
+     * @param that The node to compare with
+     * @return the comapre result
+     */
+    public int compareTo(HuffmanNode<T> that) {
+        return Long.compare(this.freq, that.freq);
+    }
+
+}
+
+```
+ 
+De <code>Huffman</code> nodes worden nu door de statische methodes <code>from</code> en <code>combine</code> die niet meer parameters bevatten dan strikt noodzakelijk.
+
+We kunnen nu gaan kijken om de <code>HuffmanTextCompressor</code> te verbeteren.
+Allereerst een naams verandering, de code moet eventueel generiek inzetbaar zijn. Dus <code>HuffmanCompressor</code> klinkt beter.
+
+Verder hebben de interfaces <code>Encode</code> en <code>Decode</code> niet super veel toe te voegen. Beter zou zijn om dit statische factory methodes te maken in de <code>HuffmanCompressor</code>.
+
+Allereerst de aanpassingen aan de <code>buildTree</code> methode. 
+
+```java
+
+      /**
+     * Build a Huffman tree from a stream
+     * @param elements the elements to process
+     * @return an ordered Huffman tree for the elements
+     */
+    private static <T> HuffmanNode<T> buildTree(Stream<T> elements) {
+        Queue<HuffmanNode> pq = new PriorityQueue<>();
+        Iterator<Map.Entry<T,Long>> frequencies = FrequencyCounter.getFrequencies(elements).entrySet().iterator();
+        while (frequencies.hasNext()){
+            Map.Entry<T,Long> entry = frequencies.next();
+            pq.add(HuffmanNode.from(entry.getKey(),entry.getValue()));
+        }
+        while (pq.size() > 1) {
+            //Remove two smallest elements.
+            HuffmanNode node1 = pq.poll();
+            HuffmanNode node2 = pq.poll();
+            // Combine into a single node with these two as its children.
+            pq.add(HuffmanNode.combine(node1,node2));
+        }
+        // pq.size must be 1 so return the node
+        return pq.poll();
+    }
+
+```
+ 
+Wat opvalt in de bovenstaande code is dat alle referenties naar tekst zijn vervangen, ook is nu de <code>FrequencyCounter</code> direct aangeroepen.
+
+Dit levert nog een probleempje op met de compilatie, de methode getFrequencies is nog niet als statische methode gedefineerd.
+
+<code>
+
+
+
+</code>
 
 #### Vraag 2b. Van welke orde is het sorteer algoritme? 
 We hebben nu een sorteer algoritme gemaakt. Het eerste gedeelte het lezen van de text is O(1). Het invoegen van in de boom is order log(n). (We beschouwen het toevoegen aan de lijst bij gelijkheid ook O(1)).Het opzetten is dus O(log(n))
+
 
 
 #### Vraag 2c. Hoe geef je aan waarop er gesorteerd moet worden?

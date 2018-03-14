@@ -20,7 +20,7 @@ public class FrequencyCounter<T extends Comparable<T>> {
      * @param stream The stream of elements
      * @return A map with elements and their frequencies
      */
-    public final Map<T,Long> getFrequencies(Stream<T> stream) {
+    public final static <T> Map<T,Long> getFrequencies(Stream<T> stream) {
         Map<T, Long> frequencies = new LinkedHashMap<>();
         // Group the elements in a stream based on there identity and count the occurences
         stream.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
