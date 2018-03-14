@@ -1,11 +1,7 @@
 package Compression;
 
-import Compression.Utils.CharacterCounter;
 import Compression.Utils.FrequencyCounter;
-
 import java.util.*;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -19,28 +15,26 @@ public class HuffmanCompressor {
      * @param s The message to decompress
      * @return The uncompressed message
      */
-    public void decode() {
-
+    public static <T> Stream<T> decode() {
+        return null;
         //TODO
     }
 
     /**
-     * encrypt a text to a compressed form, using the Huffman coding
-     * @param s The text to compress
-     * @return The encrypted string compressed by the Huffman compression algorithm
+     *
+     * @param elements the stream of elements to process
+     * @param <T> Stores the compressed stream of elements
      */
-    public void encode() {
-        if (s == null) {
+    public static <T> void encode(Stream<T> elements) {
+        if (elements == null) {
             throw new NullPointerException("Input text cannot be null.");
         }
-        if (s.length() == 0) {
+        if (elements.count() == 0) {
             throw new IllegalArgumentException("The input text should at least have 1 character.");
         }
-        final Map<Character,Long> frequencies = CharacterCounter.getFrequencies(s);
-//        final HuffmanNode root = buildTree(frequencies);
+        final HuffmanNode root = buildTree(elements);
 //        final Map<Character, String> charCode = generateCodes(frequencies, root);
 //        final String encodedMessage = encodeMessage(charCode, s);
-        //return null;
     }
 
     /**
@@ -66,49 +60,19 @@ public class HuffmanCompressor {
         return pq.poll();
     }
 
-
-//            HuffmanNode tree = null;
-//            if (frequencies.hasNext()) {
-//                Map.Entry<Character,Integer> entry = (Map.Entry) frequencies.next();
-//                tree = new HuffmanNode(entry.getKey(),entry.getValue(), null,null);
-//            }
-//            while (frequencies.hasNext()) {
-//                Map.Entry<Character,Integer> entry = (Map.Entry) frequencies.next();
-//                HuffmanNode node = new HuffmanNode(entry.getKey(),entry.getValue(), null,null);
-//                tree.add(node);
-//            }
-//            return tree;
-//        }
-//
-//        private void add(HuffmanNode node) {
-//            if (this.compareTo(node) == 0) { // the frequencies are equal, so move it to the right..
-//                // TODO
-//            }
-//            else if(this.compareTo(node) == 1) { // the frequency of the first is larger so move into the left branch
-//                if (null == left) { // no left branch so add the node here
-//                    left = node;
-//                }
-//                else add(node);
-//            }
-//            else if (null == right) { // we have no rightbranch yet, so put node 2 here
-//                right = node;
-//            }
-//            else add(node);
-//        }
-
-    private static Map<Character, String> generateCodes(Map<Character,Long> frequencies, HuffmanNode node) {
-        final Map<Character, String> map = new HashMap<Character, String>();
+    private static <T> Map<T, String> generateCodes(Map<T,Long> frequencies, HuffmanNode node) {
+        final Map<T, String> map = new HashMap<T, String>();
         generateCode(node, map, "");
         return map;
     }
 
-    private static void generateCode(HuffmanNode node, Map<Character, String> map, String s) {
-        if (node.left == null && node.right == null) {
-            map.put(node.ch, s);
+    private static <T> void generateCode(HuffmanNode node, Map<T, String> map, String s) {
+        if (node.left() == null && node.right() == null) {
+            map.put(node.element(), s); //TODO
             return;
         }
-        generateCode(node.left, map, s + '0');
-        generateCode(node.right, map, s + '1' );
+        generateCode(node.left(), map, s + '0');
+        generateCode(node.right(), map, s + '1' );
     }
 
 }

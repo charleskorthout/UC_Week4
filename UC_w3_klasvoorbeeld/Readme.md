@@ -947,11 +947,25 @@ Wat opvalt in de bovenstaande code is dat alle referenties naar tekst zijn verva
 
 Dit levert nog een probleempje op met de compilatie, de methode getFrequencies is nog niet als statische methode gedefineerd.
 
-<code>
+```java
 
+/**
+     * Calcualte the frequencies of elements in a stream
+     * @param stream The stream of elements
+     * @return A map with elements and their frequencies
+     */
+    public final static <T> Map<T,Long> getFrequencies(Stream<T> stream) {
+        Map<T, Long> frequencies = new LinkedHashMap<>();
+        // Group the elements in a stream based on there identity and count the occurences
+        stream.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                                 .entrySet()
+                                 .stream()
+                                 .sorted(Map.Entry.<T, Long>comparingByValue())
+                                 .forEachOrdered(e -> frequencies.put(e.getKey(), e.getValue()));;
+        return frequencies;
+    }
+```
 
-
-</code>
 
 #### Vraag 2b. Van welke orde is het sorteer algoritme? 
 We hebben nu een sorteer algoritme gemaakt. Het eerste gedeelte het lezen van de text is O(1). Het invoegen van in de boom is order log(n). (We beschouwen het toevoegen aan de lijst bij gelijkheid ook O(1)).Het opzetten is dus O(log(n))
