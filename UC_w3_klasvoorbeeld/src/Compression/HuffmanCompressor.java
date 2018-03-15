@@ -2,6 +2,7 @@ package Compression;
 
 import Compression.Utils.FrequencyCounter;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -33,8 +34,8 @@ public class HuffmanCompressor {
             throw new IllegalArgumentException("The input text should at least have 1 character.");
         }
         final HuffmanNode root = buildTree(elements);
-//        final Map<Character, String> charCode = generateCodes(frequencies, root);
-//        final String encodedMessage = encodeMessage(charCode, s);
+        final Map<Optional<T>, String> charCode = generateCodes(root);
+//        final String encodedMessage = encodeMessage(charCode, elements);
     }
 
     /**
@@ -60,20 +61,59 @@ public class HuffmanCompressor {
         return pq.poll();
     }
 
-    private static <T> Map<T, String> generateCodes(Map<T,Long> frequencies, HuffmanNode node) {
-        final Map<T, String> map = new HashMap<T, String>();
+    /**
+     * Generate a code map from the Huffman nodes
+     * @param node The huffman root with nodes
+     * @param <T> The type of the elements
+     * @return A map with all the elements and their corresponding frequencies
+     */
+    private static <T> Map<Optional<T>, String> generateCodes(HuffmanNode node) {
+        final Map<Optional<T>, String> map = new HashMap<Optional<T>, String>();
         generateCode(node, map, "");
         return map;
     }
 
-    private static <T> void generateCode(HuffmanNode node, Map<T, String> map, String s) {
+    /**
+     * Recusively generate the code for a specific node of the Huffman tree
+     * @param node The node to create the code for
+     * @param map A map with the code for all descendants of the node
+     * @param s The code as a concatenated '0' / '1' string
+     * @param <T> The type of the elements
+     */
+    private static <T> void generateCode(HuffmanNode node, Map<Optional<T>, String> map, String s) {
         if (node.left() == null && node.right() == null) {
-            map.put(node.element(), s); //TODO
+            map.put(node.element(), s);
             return;
         }
         generateCode(node.left(), map, s + '0');
         generateCode(node.right(), map, s + '1' );
     }
 
+    /**
+     * encode the stream of elements into a string using the code table
+     * @param map The code table for the elements
+     * @param elements The elements
+     * @param <T> The type of the elements
+     * @return A string representing the huffman coding of the elements
+     */
+    private static <T> String encodedMessage(Map<Optional<T>, String> map, Stream<T> elements) {
+        StringBuilder b = new StringBuilder();
+        elements.forEach( (element) -> b.append(map.get(element)));
+        return b.toString();
+    }
+
+    /**
+     * Create a lookup map from the code table
+     * @param codelist The list with codes
+     * @param <T> The type of the elements
+     * @return A Map with the codes and the elements to retrieve quickly the elements based on the provided code
+     */
+    private static <T> Map<String, Optional<T>> createReverseLookup(Map<Optional<T>, String> codelist) {
+        return codelist.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    }
+
+    private static <T> Stream<T> decodeMessage(Map<String, Optional<T>> reverseMap, String codedmessage) {
+        return null; //TODO
+    }
 }
-}
+
