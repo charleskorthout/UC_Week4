@@ -1,14 +1,10 @@
 package Compression;
 
 import Compression.Utils.FrequencyCounter;
-import javafx.util.Pair;
-
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+
 
 /**
  * The Huffman text compressor compresses and decompresses a stream of elements a string of zeroes and ones
@@ -21,9 +17,13 @@ public class HuffmanCompressor {
      * @param s The message to decompress
      * @return The uncompressed message
      */
-    public static <T> Stream<T> decode() {
-        return null;
-        //TODO
+    public static <T> Stream<T> decode(String lookuptablePath, String codemessage) {
+       List<T> list = new LinkedList<T>()
+       if (codemessage == null) return list.streams();
+       else {
+           // Map<String, T> lookupTable = load the lookuptabel from ...
+           // return decodeMessage(lookupTable, codemessage)
+           return null;
     }
 
     /**
