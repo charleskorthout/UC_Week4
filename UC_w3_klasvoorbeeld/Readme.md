@@ -1010,30 +1010,170 @@ Specificeer en implementeer de functie waarmee de codes kunnen worden afgelezen.
 ### Stap 5: Coderen van het bericht
 
 Aan de hand van de codes kan de data worden gecomprimeerd. Kies hervoor een datastructuur die dit ondersteunt en een methode die dit daadwerkelijk uitvoert.
- 
+
+```java
+/**
+     * Recusively generate the code for a specific node of the Huffman tree
+     * @param node The node to create the code for
+     * @param map A map with the code for all descendants of the node
+     * @param s The code as a concatenated '0' / '1' string
+     * @param <T> The type of the elements
+     */
+    private static <T> void generateCode(HuffmanNode node, Map<Optional<T>, String> map, String s) {
+        if (node.left() == null && node.right() == null) {
+            map.put(node.element(), s);
+            return;
+        }
+        generateCode(node.left(), map, s + '0');
+        generateCode(node.right(), map, s + '1' );
+    }
+
+    /**
+     * encode the stream of elements into a string using the code table
+     * @param map The code table for the elements
+     * @param elements The elements
+     * @param <T> The type of the elements
+     * @return A string representing the huffman coding of the elements
+     */
+    private static <T> String encodedMessage(Map<Optional<T>, String> map, Stream<T> elements) {
+        StringBuilder b = new StringBuilder();
+        elements.forEach( (element) -> b.append(map.get(element)));
+        return b.toString();
+    }
+```
+
 ### Vraag 5a. 
 Wat is de orde van het algoritme dat je gebruikt hebt? 
-- ..
-- ..
+Het algoritme loopt de gehele boom door om de code te bepalen. De orde van dit algoritme is O(n)
 
 In principe zou je stap 4 over hebben kunnen slaan en voor iedere te comprimeren karakter de code in de boom hebben kunnen opzoeken. 
 
 ### Vraag 5b. 
 Waarom zou stap 4 in het algoritme zijn opgenomen? 
-- ..
-- ..
-- .. 
+Als je niet eenmalig de lookup tabel aanmaakt moet je voor elk karakter door de boom. Het zoeken in de boom is orde m*log(n), waarbij n het aantal verschillende karakters is en m het aantal karakters in het te coderen bericht.
 
-Vergelijk de grootte in bits van de gecomprimeerde en gedecomprimeerde data. Tel hierbij elk character dat een bit voorstelt als ��n bit (dus niet als character van 8 of 16 bits). 
+Vergelijk de grootte in bits van de gecomprimeerde en gedecomprimeerde data. Tel hierbij elk character dat een bit voorstelt als n bit (dus niet als character van 8 of 16 bits). 
 ### Optioneel:
 Indien je elke codering echt bit voor bit wilt opslaan i.p.v. als een string, gebruik dan een BitSet. 
 
+```java
+/**
+     * Convert a message of 0 and 1 into a bitset
+     * @param codemessage The message containing a sequence of 0 and 1
+     * @return the BitSet representation of the 0 and 1
+     */
+    private static BitSet toBits(String codemessage) {
+        BitSet bits = new BitSet(codemessage.length());
+        for (int i = 0; i < codemessage.length(); i++){ ///// TODO UGLY
+            if (codemessage.charAt(i) == '1') bits.set(i);
+        }
+        return bits;
+    }
+
+    /**
+     * convert a sequence of bits in to a message string of zeroes and ones
+     * @param bits The sequence of bits
+     * @return The converted message
+     */
+    private static String fromBits(BitSet bits) {
+        String message = "";
+        for (int i = 0; i < bits.length(); i++) { ///// TODO UGLY
+            if (bits.get(i)) message += "1";
+            else message += "0";
+        }
+        return message;
+    }
+```
 
 ### Stap 6: Decoderen
 
 Aan de hand van de boom of lijst van codes kun je het gecomprimeerde bericht weer decomprimeren tot de originele data.
 
 Kies hervoor een datastructuur die dit ondersteunt en een methode die dit daadwerkelijk uitvoert. Deze methode moet van orde O(n) zijn, waarbij n het aantal gecomprimeerde tekens in het bericht is.
+
+```java
+
+/**
+     * Create a lookup map from the code table
+     * @param codelist The list with codes
+     * @param <T> The type of the elements
+     * @return A Map with the codes and the elements to retrieve quickly the elements based on the provided code
+     */
+    private static <T> Map<String, Optional<T>> createReverseLookup(Map<Optional<T>, String> codelist) {
+        return codelist.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    }
+
+    /**
+     * Decode the message string into a message stream
+     * @param reverseMap The lookup table for codes and elements
+     * @param codedmessage The coded message serialized as a string
+     * @param <T> The type of the elements
+     * @return A stream of decoded elements
+     */
+    private static <T> Stream<T> decodeMessage(Map<String, Optional<T>> reverseMap, String codedmessage) {
+        List<Optional<T>> elements = new LinkedList<>();
+        Iterator<Character> iterator =  codedmessage.chars().mapToObj(c -> (char)c).iterator();
+        while (iterator.hasNext()){
+            String prefixcode = "";
+            // append the prefix till we find a match or we are at the end of the message
+            while (!reverseMap.containsKey(prefixcode) && iterator.hasNext()) {
+                prefixcode += iterator.next();
+                if (reverseMap.containsKey(prefixcode)) {
+                    ((LinkedList<Optional<T>>) elements).addLast(reverseMap.get(prefixcode));
+                }
+            }
+            prefixcode = "";
+        }
+        // filter out all non empty elements
+        return elements.stream()
+                .filter(Optional::isPresent)
+                .map(Optional::get);
+    }
+    
+```
+
+### Het opslaan van de informatie
+Een van de problemen met de gekozen (generieke) oplossing is dat we op een of andere manier de elementen in de codetabel moeten kunnen opslaan.
+
+Om die mogelijke te hebben moeten de elementen serialiseerbaar zijn. Dit betekent dat er wat aanpassingen moeten worden gemaakt in de HuffmanNode implementatie. Het generiek type 'T' moet een overerving zijn van <code>Serializable</code>
+
+Dit betekent dat we de volgende fragmenten moeten aanpassen. 
+
+Allereerst de klasse definitie:
+
+```java
+public class HuffmanNode<T extends Serializable> implements Comparable<HuffmanNode<T>> {
+```
+
+Verder de twee statische aanroepen voor de node aanmaak, de methode <code>from</code>
+
+```java
+    /**
+     * Create a Huffman node from the element and the frequency
+     * @param element The element
+     * @param freq The total occurences of this element
+     * @param <T> The type of the element
+     * @return A Huffman node with the element and frequencies and empty subtrees
+     */
+    public static <T extends Serializable> HuffmanNode<T> from(T element, Long freq) {
+        return new HuffmanNode(Optional.of(element), freq, null, null);
+    }
+```
+en de methode <code>combine</code>:
+
+```java
+/**
+     * Combines two Huffman nodes into a single node, and adds the frequencies of the subnodes
+     * @param left The left node
+     * @param right The right node
+     * @param <T> The type of the element
+     * @return A Huffman Node that is build from the two subnodes
+     */
+    public static <T extends Serializable> HuffmanNode<T> combine(HuffmanNode<T> left, HuffmanNode<T> right) {
+        return new HuffmanNode(Optional.empty(), left.frequency() + right.frequency(), left, right);
+    }
+```
+
 
 
 

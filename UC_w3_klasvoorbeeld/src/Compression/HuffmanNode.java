@@ -1,11 +1,12 @@
 package Compression;
 
+import java.io.Serializable;
 import java.util.Optional;
 
 /**
  * A tree structure to hold the huffman elements and frequencies
  */
-public class HuffmanNode<T> implements Comparable<HuffmanNode<T>> {
+public class HuffmanNode<T extends Serializable> implements Comparable<HuffmanNode<T>> {
     private final Optional<T> element;
     private final Long freq;
     private HuffmanNode left, right;
@@ -29,7 +30,7 @@ public class HuffmanNode<T> implements Comparable<HuffmanNode<T>> {
      * @param <T> The type of the element
      * @return A Huffman node with the element and frequencies and empty subtrees
      */
-    public static <T> HuffmanNode<T> from(T element, Long freq) {
+    public static <T extends Serializable> HuffmanNode<T> from(T element, Long freq) {
         return new HuffmanNode(Optional.of(element), freq, null, null);
     }
 
@@ -40,7 +41,7 @@ public class HuffmanNode<T> implements Comparable<HuffmanNode<T>> {
      * @param <T> The type of the element
      * @return A Huffman Node that is build from the two subnodes
      */
-    public static <T> HuffmanNode<T> combine(HuffmanNode<T> left, HuffmanNode<T> right) {
+    public static <T extends Serializable> HuffmanNode<T> combine(HuffmanNode<T> left, HuffmanNode<T> right) {
         return new HuffmanNode(Optional.empty(), left.frequency() + right.frequency(), left, right);
     }
     /**
