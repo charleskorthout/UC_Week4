@@ -1,28 +1,31 @@
 package Compression;
 
 import Compression.Utils.FrequencyCounter;
+
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
 /**
- * The Huffman text compressor compresses and decompresses a stream of elements a string of zeroes and ones
+ * The Huffman compressor compresses and decompresses a stream of elements a string of zeroes and ones
  */
 public class HuffmanCompressor {
 
 
     /**
      * Decrypts a Huffman encoded text message into the original text
-     * @param s The message to decompress
+     * @param lookuptablePath the path to the lookuptable file
+     * @param codemessage The message to decompress
      * @return The uncompressed message
      */
     public static <T> Stream<T> decode(String lookuptablePath, String codemessage) {
-       List<T> list = new LinkedList<T>()
-       if (codemessage == null) return list.streams();
-       else {
-           // Map<String, T> lookupTable = load the lookuptabel from ...
-           // return decodeMessage(lookupTable, codemessage)
+//       List<T> list = new LinkedList<T>();
+//       if (codemessage == null) return list.streams();
+//       else {
+//           // Map<String, T> lookupTable = load the lookuptabel from ...
+//           // return decodeMessage(lookupTable, codemessage)
            return null;
     }
 
@@ -31,7 +34,7 @@ public class HuffmanCompressor {
      * @param elements the stream of elements to process
      * @param <T> Stores the compressed stream of elements
      */
-    public static <T> void encode(Stream<T> elements) {
+    public static <T extends Serializable> void encode(Stream<T> elements) {
         if (elements == null) {
             throw new NullPointerException("Input text cannot be null.");
         }
@@ -48,7 +51,7 @@ public class HuffmanCompressor {
      * @param elements the elements to process
      * @return an ordered Huffman tree for the text
      */
-    private static <T> HuffmanNode<T> buildTree(Stream<T> elements) {
+    private static <T extends Serializable> HuffmanNode<T> buildTree(Stream<T> elements) {
         Queue<HuffmanNode> pq = new PriorityQueue<>();
         Iterator<Map.Entry<T,Long>> frequencies = FrequencyCounter.getFrequencies(elements).entrySet().iterator();
         while (frequencies.hasNext()){
